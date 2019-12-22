@@ -3,7 +3,7 @@ import sklearn
 import matplotlib.pyplot as plt
 import pickle
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split, learning_curve, validation_curve
+from sklearn.model_selection import train_test_split, learning_curve, validation_curve, cross_val_score
 from sklearn.preprocessing import StandardScaler, Normalizer, PolynomialFeatures
 from sklearn.utils import shuffle
 
@@ -19,34 +19,38 @@ for i in range(0, 100):
     data3[i][:] = np.load('E:/dataset/test/' + str(i) + '/feat.npy')
 
 x_train = np.vstack((data1, data2))
-# x_test = data3
+x_test = data3
 x_train = list(x_train)
 y_train = [1] * 100 + [0] * 100
+y_test=[0,0,1,0,1,0,0,0,1,0,0,1,0,1,1,1,1,1,0,1,0,1,1,0,0,1,1,0,1,0,1,0,1,
+        0,0,0,0,1,1,0,0,1,0,0,1,1,1,0,1,0,1,0,1,0,0,1,1,1,0,1,0,1,1,0,0,0,
+        0,1,0,0,0,1,1,0,1,1,0,1,1,1,0,0,1,0,0,0,0,0,1,0,1,0,1,0,1,1,0,1,1,1]
 
-poly = PolynomialFeatures(3)  # 生成多项式特征
+poly = PolynomialFeatures(interaction_only=False, include_bias=False, degree=3,order='C')  # 生成多项式特征
 x_train_poly = poly.fit_transform(x_train)
-# x_test_poly = poly.fit_transform(x_test)
+x_test_poly = poly.fit_transform(x_test)
+
 xtrans = StandardScaler().fit(x_train_poly)
-# xtest_trans= StandardScaler().fit(x_test_poly)
+xtest_trans= StandardScaler().fit(x_test_poly)
 standaedizedX = xtrans.transform(x_train_poly)  # 标准化0.775 正规化0.69
-# standaedizedXtest=xtrans.transform(x_test_poly)
+standaedizedXtest=xtrans.transform(x_test_poly)
 
 clf = LogisticRegression(penalty='l2',  # 惩罚项（l1与l2），默认l2
                          dual=False,  # 对偶或原始方法，默认False，样本数量>样本特征\
                          # 的时候，dual通常设置为False
-                         tol=0.00001,  # 停止求解的标准，float类型，默认为1e-4。\
+                         tol=0.0001,  # 停止求解的标准，float类型，默认为1e-4。\
                          # 就是求解到多少的时候，停止，认为已经求出最优解
-                         C=20.0,  # 正则化系数λ的倒数，float类型，默认为1.0，越小的数值表示越强的正则化。
+                         C=0.01,  # 正则化系数λ的倒数，float类型，默认为1.0，越小的数值表示越强的正则化。
                          fit_intercept=True,  # 是否存在截距或偏差，bool类型，默认为True。
                          intercept_scaling=1,  # 仅在正则化项为”liblinear”，\
                          # 且fit_intercept设置为True时有用。float类型，默认为1
                          class_weight='balanced',  # 用于标示分类模型中各种类型的权重，\
                          # 默认为不输入，也就是不考虑权重，即为None，balanced为平衡权重，\
                          # 特殊样本越少权重越大，惩罚越大，解决了失衡问题
-                         random_state=1,  # 随机数种子，int类型，可选参数，默认为无
-                         solver='liblinear',  # 优化算法选择参数，只有五个可选参数，\
+                         random_state=0,  # 随机数种子，int类型，可选参数，默认为无
+                         solver='lbfgs',  # 优化算法选择参数，只有五个可选参数，\
                          # 即newton-cg,lbfgs,liblinear,sag,saga。默认为liblinear
-                         max_iter=50,  # 算法收敛最大迭代次数，int类型，默认为10。
+                         max_iter=100,  # 算法收敛最大迭代次数，int类型，默认为10。
                          multi_class='ovr',  # 分类方式选择参数，str类型，可选参数为ovr和multinomial，\
                          # 默认为ovr。如果是二元逻辑回归，ovr和multinomial\
                          # 并没有任何区别，区别主要在多元逻辑回归上。
@@ -58,9 +62,12 @@ clf = LogisticRegression(penalty='l2',  # 惩罚项（l1与l2），默认l2
 clf.fit(standaedizedX, y_train)  # 拟合训练
 print(clf.score(standaedizedX, y_train))
 print(clf.predict(standaedizedX))
-
+print(clf.score(standaedizedXtest, y_test))
+avg=cross_val_score(clf,standaedizedX,y_train,cv=2,n_jobs=-1,scoring='accuracy')
+avg=sum(avg)/len(avg)
+print(avg)
 # print(clf.coef_)#模型参数
-# print(clf.predict(standaedizedXtest))
+print(clf.predict(standaedizedXtest))
 
 # 过拟合可视化，随着不同数量的输入错误率变化的曲线
 # train_sizes,train_score,test_score = learning_curve(clf, standaedizedX, y_train,
@@ -78,9 +85,9 @@ print(clf.predict(standaedizedX))
 # print(clf.score(x_t,y_t))
 # print(clf.predict(x_t))
 
-# 调参可视化，随着参数不同，正确率变化的曲线
-param_range = range(10, 100, 10)
-train_score, test_score = validation_curve(clf, standaedizedX, y_train,
+#调参可视化，随着参数不同，正确率变化的曲线
+param_range =np.arange(0.001,0.02,0.001)
+train_score, test_score = validation_curve(clf, x_train, y_train,
                                            param_name='C', param_range=param_range,
                                            cv=20, scoring='accuracy')
 train_score = np.mean(train_score, axis=1)
